@@ -4,6 +4,7 @@
 
 #define MAX_FILES 100
 #define MAX_CMD_LEN 256
+#define MAX_ARGS 8
 
 typedef struct {
     char name[MAX_FILENAME];
@@ -26,9 +27,7 @@ static void gui_cleanup(void);
 static void gui_redraw(void);
 static void gui_update_file_list(void);
 static void gui_show_info(void);
-static void gui_handle_input(int ch);
 static void gui_exec_command(const char *cmd);
-static int gui_get_input(char *buf, int max_len);
 
 void gui_run(void)
 {

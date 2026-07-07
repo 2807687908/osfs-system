@@ -130,10 +130,10 @@ int fs_munmap(void *addr, size_t length)
         printf("已将 %d 字节写回文件\n", total_written);
     }
     
+    printf("munmap成功: addr=%p\n", addr);
     free(addr);
     mmap_table[i].used = 0;
     
-    printf("munmap成功: addr=%p\n", addr);
     return 0;
 }
 
