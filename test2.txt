@@ -1,0 +1,20 @@
+login root
+root
+create f1.txt
+open f1.txt w
+write 0 HelloExt2FileSystem
+close 0
+dir
+open f1.txt r
+read 0 10
+close 0
+delete f1.txt
+create f2.txt
+open f2.txt w
+write 0 ABCDEFGHIJ
+close 0
+dir
+open f2.txt r
+read 0 5
+close 0
+exit

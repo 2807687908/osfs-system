@@ -5,4 +5,5 @@
 .DS_Store
 .vs/
 .claude/
-*.txt
+*.tar.gz
+*.patch

@@ -205,6 +205,30 @@ int  file_chmod(const char *name, uint32_t parent_ino, uint16_t new_perm);
 /* ========== shell.c 函数声明 ========== */
 void shell_run(void);
 
+/* ========== trash.c 函数声明 ========== */
+int  trash_move(const char *path);
+int  trash_list(void);
+int  trash_restore(const char *name);
+int  trash_empty(void);
+
+/* ========== mmap.c 函数声明 ========== */
+void* fs_mmap(int fd, size_t length);
+int  fs_munmap(void *addr, size_t length);
+int  fs_msync(void *addr);
+int  mmap_list(void);
+
+/* ========== journal.c 函数声明 ========== */
+void journal_init(void);
+void journal_recover(void);
+void journal_log_create(uint32_t inode_no);
+void journal_log_delete(uint32_t inode_no);
+void journal_log_write(uint32_t inode_no, uint32_t block_no, const void *data, size_t len);
+void journal_log_chmod(uint32_t inode_no, uint16_t new_perm);
+void journal_log_link(uint32_t inode_no, uint32_t parent_inode);
+void journal_list(void);
+void journal_clear(void);
+void journal_toggle(int enable);
+
 /* 工具函数 */
 time_t get_current_time(void);
 

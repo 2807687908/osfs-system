@@ -1,0 +1,21 @@
+login root
+root
+dir
+create hello.txt
+create test.c 755
+mkdir docs
+dir
+open hello.txt w
+write 0 HelloWorld
+close 0
+open hello.txt r
+read 0 10
+close 0
+open hello.txt rw
+read 0 5
+write 0 MoreData
+close 0
+df
+lsof
+help
+exit

@@ -1,0 +1,28 @@
+login root
+root
+create f1.txt
+mkdir sub
+dir
+cd sub
+dir
+cd ..
+open f1.txt w
+write 0 HelloExt2FileSystem
+close 0
+open f1.txt r
+read 0 18
+close 0
+open f1.txt rw
+read 0 5
+write 0 OVERWRITE_TEST
+close 0
+delete f1.txt
+rmdir sub
+create test.c 755
+dir
+chmod test.c 600
+dir
+df
+lsof
+help
+exit

@@ -1,0 +1,10 @@
+login root
+root
+create f1.txt
+open f1.txt w
+write 0 HELLO
+close 0
+open f1.txt r
+read 0 5
+close 0
+exit

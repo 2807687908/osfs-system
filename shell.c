@@ -24,6 +24,17 @@ static void show_help(void)
     printf("  pwd                     - 显示当前路径\n");
     printf("  lsof                    - 列出所有打开的文件\n");
     printf("  df                      - 显示磁盘使用情况\n");
+    printf("  trash                   - 列出回收站内容\n");
+    printf("  trash-move <文件>       - 将文件移入回收站\n");
+    printf("  trash-restore <文件>    - 从回收站恢复文件\n");
+    printf("  trash-empty             - 清空回收站\n");
+    printf("  mmap    <fd> <长度>     - 将文件映射到内存\n");
+    printf("  munmap  <地址>          - 解除内存映射\n");
+    printf("  msync   <地址>          - 将映射内容写回文件\n");
+    printf("  mlist                   - 列出所有mmap区域\n");
+    printf("  journal                 - 查看文件系统日志\n");
+    printf("  journal-clear           - 清空日志\n");
+    printf("  journal-toggle <on/off> - 开启/关闭日志\n");
     printf("  help                    - 显示此帮助\n");
     printf("  exit                    - 退出系统\n");
     printf("================================================\n\n");
@@ -294,6 +305,93 @@ static int execute_command(char *line)
     /* ===== lsof ===== */
     else if (strcmp(args[0], "lsof") == 0) {
         show_lsof();
+    }
+    /* ===== trash ===== */
+    else if (strcmp(args[0], "trash") == 0) {
+        trash_list();
+    }
+    /* ===== trash-move ===== */
+    else if (strcmp(args[0], "trash-move") == 0) {
+        if (argc < 2) {
+            printf("用法: trash-move <文件/目录>\n");
+            return 0;
+        }
+        trash_move(args[1]);
+    }
+    /* ===== trash-restore ===== */
+    else if (strcmp(args[0], "trash-restore") == 0) {
+        if (argc < 2) {
+            printf("用法: trash-restore <文件名>\n");
+            return 0;
+        }
+        trash_restore(args[1]);
+    }
+    /* ===== trash-empty ===== */
+    else if (strcmp(args[0], "trash-empty") == 0) {
+        trash_empty();
+    }
+    /* ===== mmap ===== */
+    else if (strcmp(args[0], "mmap") == 0) {
+        if (argc < 3) {
+            printf("用法: mmap <fd> <长度>\n");
+            return 0;
+        }
+        {
+            int fd = atoi(args[1]);
+            size_t length = (size_t)strtol(args[2], NULL, 10);
+            void *addr = fs_mmap(fd, length);
+            if (addr != NULL) {
+                printf("映射成功: %p\n", addr);
+            }
+        }
+    }
+    /* ===== munmap ===== */
+    else if (strcmp(args[0], "munmap") == 0) {
+        if (argc < 2) {
+            printf("用法: munmap <地址>\n");
+            return 0;
+        }
+        {
+            void *addr = (void *)strtoul(args[1], NULL, 16);
+            fs_munmap(addr, 0);
+        }
+    }
+    /* ===== msync ===== */
+    else if (strcmp(args[0], "msync") == 0) {
+        if (argc < 2) {
+            printf("用法: msync <地址>\n");
+            return 0;
+        }
+        {
+            void *addr = (void *)strtoul(args[1], NULL, 16);
+            fs_msync(addr);
+        }
+    }
+    /* ===== mlist ===== */
+    else if (strcmp(args[0], "mlist") == 0) {
+        mmap_list();
+    }
+    /* ===== journal ===== */
+    else if (strcmp(args[0], "journal") == 0) {
+        journal_list();
+    }
+    /* ===== journal-clear ===== */
+    else if (strcmp(args[0], "journal-clear") == 0) {
+        journal_clear();
+    }
+    /* ===== journal-toggle ===== */
+    else if (strcmp(args[0], "journal-toggle") == 0) {
+        if (argc < 2) {
+            printf("用法: journal-toggle <on/off>\n");
+            return 0;
+        }
+        if (strcmp(args[1], "on") == 0) {
+            journal_toggle(1);
+        } else if (strcmp(args[1], "off") == 0) {
+            journal_toggle(0);
+        } else {
+            printf("无效参数，使用 on 或 off\n");
+        }
     }
     /* ===== help ===== */
     else if (strcmp(args[0], "help") == 0 || strcmp(args[0], "?") == 0) {

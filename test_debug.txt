@@ -1,0 +1,11 @@
+login root
+root
+create x.txt
+open x.txt w
+write 0 ABC
+close 0
+dir
+open x.txt w
+close 0
+delete x.txt
+exit
