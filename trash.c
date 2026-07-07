@@ -96,9 +96,8 @@ int trash_move(const char *path)
         strncpy(name, path, MAX_FILENAME - 1);
     }
     
-    int max_name_len = MAX_FILENAME - 12;
-    if (max_name_len < 1) max_name_len = 1;
-    snprintf(new_name, MAX_FILENAME, "%.*s_%u", max_name_len, name, (unsigned int)time(NULL));
+    snprintf(new_name, MAX_FILENAME, "%s_%010u", name, (unsigned int)time(NULL));
+    new_name[MAX_FILENAME - 1] = '\0';
     
     dir_add_entry(trash_dir, ino, new_name, 
                   ((ip.i_mode >> 12) & 0xF) == FT_DIRECTORY ? FT_DIRECTORY : FT_REG_FILE);
