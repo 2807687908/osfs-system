@@ -100,7 +100,7 @@ static void gui_init(void)
     box(win_main, 0, 0);
     box(win_info, 0, 0);
     
-    mvwprintw(win_status, 0, 0, "Linux二级文件系统 - 上下键选择 | 回车确认 | ESC退出");
+    mvwprintw(win_status, 0, 0, "Linux FS - Arrow keys to select | Enter to confirm | ESC to exit");
 }
 
 static void gui_cleanup(void)
@@ -120,7 +120,7 @@ static void gui_redraw(void)
     mvwprintw(win_main, 0, 2, " %s ", current_dir_path);
     
     mvwprintw(win_main, 2, 4, "%-24s %-8s %-8s %-10s %s", 
-              "文件名", "Inode", "大小", "权限", "类型");
+              "Name", "Inode", "Size", "Perm", "Type");
     mvwprintw(win_main, 3, 4, "%s", "---------------------------------------------------------------");
     
     for (int i = 0; i < file_count; i++) {
@@ -196,7 +196,6 @@ static void gui_update_file_list(void)
         if (de_buf.rec_len == 0) break;
     }
     
-    getcwd(current_dir_path, MAX_PATH);
     strncpy(current_dir_path, current_path, MAX_PATH - 1);
     
     if (selected >= file_count) selected = 0;
@@ -205,15 +204,15 @@ static void gui_update_file_list(void)
 static void gui_show_info(void)
 {
     sb_read();
-    mvwprintw(win_info, 0, 2, "用户: %s | 已用块: %u | 空闲块: %u | Inode: %u/%u",
-              current_uid >= 0 ? current_user : "未登录",
+    mvwprintw(win_info, 0, 2, "User: %s | Used: %u | Free: %u | Inode: %u/%u",
+              current_uid >= 0 ? current_user : "Not logged in",
               sb.s_blocks_count - sb.s_free_blocks_count,
               sb.s_free_blocks_count,
               sb.s_inodes_count - sb.s_free_inodes_count,
               sb.s_inodes_count);
     
     if (file_count > 0 && selected < file_count) {
-        mvwprintw(win_info, 1, 2, "选中: %s (%s, inode=%u, %u字节)",
+        mvwprintw(win_info, 1, 2, "Selected: %s (%s, inode=%u, %u bytes)",
                   file_list[selected].name,
                   file_list[selected].type,
                   file_list[selected].inode,
@@ -305,9 +304,9 @@ static void gui_exec_command(const char *cmd)
                 if (n > 0) {
                     buf[n] = '\0';
                     gui_cleanup();
-                    printf("\n文件内容 (%d 字节):\n", n);
+                    printf("\nFile content (%d bytes):\n", n);
                     printf("%s\n", buf);
-                    printf("按任意键继续...");
+                    printf("Press any key to continue...");
                     getchar();
                     gui_init();
                 }
@@ -327,7 +326,7 @@ static void gui_exec_command(const char *cmd)
     } else if (strcmp(args[0], "trash") == 0) {
         gui_cleanup();
         trash_list();
-        printf("\n按任意键继续...");
+        printf("\nPress any key to continue...");
         getchar();
         gui_init();
     } else if (strcmp(args[0], "trash-empty") == 0) {
@@ -336,44 +335,44 @@ static void gui_exec_command(const char *cmd)
     } else if (strcmp(args[0], "journal") == 0) {
         gui_cleanup();
         journal_list();
-        printf("\n按任意键继续...");
+        printf("\nPress any key to continue...");
         getchar();
         gui_init();
     } else if (strcmp(args[0], "df") == 0) {
         gui_cleanup();
         sb_read();
-        printf("磁盘使用情况:\n");
-        printf("  总块数:     %u\n", sb.s_blocks_count);
-        printf("  已用块数:   %u\n", sb.s_blocks_count - sb.s_free_blocks_count);
-        printf("  空闲块数:   %u\n", sb.s_free_blocks_count);
-        printf("  总inode数:  %u\n", sb.s_inodes_count);
-        printf("  已用inode数:%u\n", sb.s_inodes_count - sb.s_free_inodes_count);
-        printf("  空闲inode数:%u\n", sb.s_free_inodes_count);
-        printf("\n按任意键继续...");
+        printf("Disk usage:\n");
+        printf("  Total blocks:    %u\n", sb.s_blocks_count);
+        printf("  Used blocks:     %u\n", sb.s_blocks_count - sb.s_free_blocks_count);
+        printf("  Free blocks:     %u\n", sb.s_free_blocks_count);
+        printf("  Total inodes:    %u\n", sb.s_inodes_count);
+        printf("  Used inodes:     %u\n", sb.s_inodes_count - sb.s_free_inodes_count);
+        printf("  Free inodes:     %u\n", sb.s_free_inodes_count);
+        printf("\nPress any key to continue...");
         getchar();
         gui_init();
     } else if (strcmp(args[0], "help") == 0) {
         gui_cleanup();
-        printf("======== Linux 二级文件系统 - 命令帮助 ========\n");
-        printf("  cd      <目录名>        - 切换目录\n");
-        printf("  create  <文件名> [权限] - 创建文件\n");
-        printf("  mkdir   <目录名>        - 创建目录\n");
-        printf("  delete  <文件名>        - 删除文件\n");
-        printf("  rmdir   <目录名>        - 删除空目录\n");
-        printf("  open    <文件名> <模式>  - 打开文件\n");
-        printf("  close   <fd>            - 关闭文件\n");
-        printf("  read    <fd> <字节数>   - 读取文件\n");
-        printf("  write   <fd> <内容>     - 写入文件\n");
-        printf("  chmod   <文件名> <权限> - 修改权限\n");
-        printf("  trash                   - 查看回收站\n");
-        printf("  trash-move <文件>       - 移入回收站\n");
-        printf("  trash-restore <文件>    - 恢复文件\n");
-        printf("  trash-empty             - 清空回收站\n");
-        printf("  journal                 - 查看日志\n");
-        printf("  df                      - 磁盘信息\n");
-        printf("  help                    - 显示帮助\n");
-        printf("==============================================\n");
-        printf("按任意键继续...");
+        printf("======== Linux Secondary File System - Help ========\n");
+        printf("  cd      <dir>           - Change directory\n");
+        printf("  create  <file> [perm]   - Create file\n");
+        printf("  mkdir   <dir>           - Create directory\n");
+        printf("  delete  <file>          - Delete file\n");
+        printf("  rmdir   <dir>           - Remove empty directory\n");
+        printf("  open    <file> <mode>   - Open file\n");
+        printf("  close   <fd>            - Close file\n");
+        printf("  read    <fd> <bytes>    - Read file\n");
+        printf("  write   <fd> <content>  - Write file\n");
+        printf("  chmod   <file> <perm>   - Change permissions\n");
+        printf("  trash                   - Show trash\n");
+        printf("  trash-move <file>       - Move to trash\n");
+        printf("  trash-restore <file>    - Restore from trash\n");
+        printf("  trash-empty             - Empty trash\n");
+        printf("  journal                 - Show journal\n");
+        printf("  df                      - Disk info\n");
+        printf("  help                    - Show help\n");
+        printf("===================================================\n");
+        printf("Press any key to continue...");
         getchar();
         gui_init();
     }
