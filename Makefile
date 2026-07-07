@@ -1,5 +1,5 @@
 CC      = gcc
-CFLAGS  = -Wall -Wextra -std=c99 -g
+CFLAGS  = -Wall -Wextra -std=c99 -D_POSIX_C_SOURCE=200112L -g
 LDFLAGS = -lncurses
 
 # 源文件

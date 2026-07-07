@@ -118,6 +118,7 @@ int user_login_full(const char *name)
  */
 int user_login(const char *name, const char *passwd)
 {
+    (void)passwd;
     struct user_entry users[MAX_USERS];
     uint32_t i;
     user_read_table(users);
