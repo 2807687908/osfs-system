@@ -205,6 +205,9 @@ int  file_chmod(const char *name, uint32_t parent_ino, uint16_t new_perm);
 /* ========== shell.c 函数声明 ========== */
 void shell_run(void);
 
+/* ========== gui.c 函数声明 ========== */
+void gui_run(void);
+
 /* ========== trash.c 函数声明 ========== */
 int  trash_move(const char *path);
 int  trash_list(void);

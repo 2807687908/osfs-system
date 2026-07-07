@@ -1,9 +1,9 @@
 CC      = gcc
 CFLAGS  = -Wall -Wextra -std=c99 -g
-LDFLAGS =
+LDFLAGS = -lncurses
 
 # 源文件
-SRCS    = main.c fs.c inode.c user.c dir.c file.c shell.c trash.c mmap.c journal.c
+SRCS    = main.c fs.c inode.c user.c dir.c file.c shell.c trash.c mmap.c journal.c gui.c
 OBJS    = $(SRCS:.c=.o)
 TARGET  = filesys
 

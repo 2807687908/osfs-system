@@ -37,8 +37,21 @@ int main(void)
         }
     }
 
-    /* 进入交互式命令行 */
-    shell_run();
+    /* 选择界面模式 */
+    printf("\n请选择运行模式:\n");
+    printf("  1. 命令行模式 (shell)\n");
+    printf("  2. 图形界面模式 (GUI - 需要ncurses)\n");
+    printf("请输入选择 [1/2]: ");
+    
+    int choice = 0;
+    scanf("%d", &choice);
+    getchar();
+    
+    if (choice == 2) {
+        gui_run();
+    } else {
+        shell_run();
+    }
 
     /* 清理并退出 */
     /* 关闭所有打开的文件描述符 */
