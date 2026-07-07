@@ -1,0 +1,8 @@
+*.o
+*.exe
+*.img
+*.db
+.DS_Store
+.vs/
+.claude/
+*.txt
