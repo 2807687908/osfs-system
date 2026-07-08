@@ -44,6 +44,25 @@
 #define FT_UNKNOWN           0
 #define FT_REG_FILE          1
 #define FT_DIRECTORY         2
+#define FT_SYMLINK           4
+
+/* 块缓存 */
+#define BLOCK_CACHE_SIZE 32
+
+typedef struct {
+    uint32_t block_no;
+    char data[BLOCK_SIZE];
+    int dirty;
+} block_cache_entry;
+
+extern block_cache_entry block_cache[BLOCK_CACHE_SIZE];
+extern int cache_hits;
+extern int cache_misses;
+
+void cache_read_block(uint32_t block_no, char *buf);
+void cache_write_block(uint32_t block_no, const char *buf);
+void cache_flush(void);
+void cache_clear(void);
 
 /* 权限位 */
 #define PERM_IRUSR          0400
@@ -194,6 +213,9 @@ int  dir_change(const char *path);
 int  path_resolve(const char *path, uint32_t *ino);
 void dir_add_entry(uint32_t dir_ino, uint32_t ino, const char *name, uint8_t ftype);
 void dir_remove_entry(uint32_t dir_ino, const char *name);
+int  dir_link(const char *target, const char *linkname);
+int  dir_symlink(const char *target, const char *linkname);
+int  dir_readlink(uint32_t ino, char *buf, size_t size);
 
 /* ========== file.c 函数声明 ========== */
 int  file_create(const char *name, uint32_t parent_ino, uint16_t perm);

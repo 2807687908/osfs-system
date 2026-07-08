@@ -85,7 +85,7 @@ int dir_list(uint32_t dir_ino)
                    entry_inode.i_size,
                    phys_blk,
                    logical_blk,
-                   (de_buf.file_type == FT_DIRECTORY) ? "<DIR>" : "<FILE>");
+                   (de_buf.file_type == FT_DIRECTORY) ? "<DIR>" : (de_buf.file_type == FT_SYMLINK) ? "<LINK>" : "<FILE>");
         }
 
         count++;
@@ -618,4 +618,138 @@ int path_resolve(const char *path, uint32_t *ino)
 
     *ino = current;
     return 0;
+}
+
+int dir_link(const char *target, const char *linkname) {
+    uint32_t target_ino;
+    if (path_resolve(target, &target_ino) != 0) {
+        printf("目标文件 '%s' 不存在\n", target);
+        return -1;
+    }
+    
+    struct inode target_ip;
+    read_inode(target_ino, &target_ip);
+    
+    if (((target_ip.i_mode >> 12) & 0xF) == FT_DIRECTORY) {
+        printf("不允许为目录创建硬链接\n");
+        return -1;
+    }
+    
+    char *sep = strrchr(linkname, '/');
+    uint32_t parent_ino;
+    char *name;
+    
+    if (sep != NULL) {
+        *sep = '\0';
+        parent_ino = dir_lookup(current_dir, linkname);
+        name = sep + 1;
+        *sep = '/';
+    } else {
+        parent_ino = current_dir;
+        name = (char *)linkname;
+    }
+    
+    if (parent_ino == 0) {
+        printf("父目录不存在\n");
+        return -1;
+    }
+    
+    if (dir_lookup(parent_ino, name) != 0) {
+        printf("链接文件 '%s' 已存在\n", name);
+        return -1;
+    }
+    
+    target_ip.i_links_count++;
+    write_inode(target_ino, &target_ip);
+    
+    dir_add_entry(parent_ino, target_ino, name, FT_REG_FILE);
+    
+    printf("硬链接 '%s' -> '%s' 创建成功\n", linkname, target);
+    return 0;
+}
+
+int dir_symlink(const char *target, const char *linkname) {
+    uint32_t ino = inode_alloc();
+    if (ino == 0) {
+        printf("无法分配inode\n");
+        return -1;
+    }
+    
+    struct inode ip;
+    read_inode(ino, &ip);
+    ip.i_mode = (FT_SYMLINK << 12) | 0777;
+    ip.i_size = (uint32_t)strlen(target);
+    ip.i_ctime = (uint32_t)time(NULL);
+    ip.i_mtime = ip.i_ctime;
+    write_inode(ino, &ip);
+    
+    uint32_t blk = block_alloc();
+    if (blk == 0) {
+        printf("无法分配块\n");
+        inode_free(ino);
+        return -1;
+    }
+    
+    char buf[BLOCK_SIZE];
+    memset(buf, 0, BLOCK_SIZE);
+    strncpy(buf, target, BLOCK_SIZE - 1);
+    write_block(blk, buf);
+    
+    ip.i_block[0] = blk;
+    write_inode(ino, &ip);
+    
+    char *sep = strrchr(linkname, '/');
+    uint32_t parent_ino;
+    char *name;
+    
+    if (sep != NULL) {
+        *sep = '\0';
+        parent_ino = dir_lookup(current_dir, linkname);
+        name = sep + 1;
+        *sep = '/';
+    } else {
+        parent_ino = current_dir;
+        name = (char *)linkname;
+    }
+    
+    if (parent_ino == 0) {
+        printf("父目录不存在\n");
+        inode_free(ino);
+        block_free(blk);
+        return -1;
+    }
+    
+    if (dir_lookup(parent_ino, name) != 0) {
+        printf("链接文件 '%s' 已存在\n", name);
+        inode_free(ino);
+        block_free(blk);
+        return -1;
+    }
+    
+    dir_add_entry(parent_ino, ino, name, FT_SYMLINK);
+    
+    printf("软链接 '%s' -> '%s' 创建成功\n", linkname, target);
+    return 0;
+}
+
+int dir_readlink(uint32_t ino, char *buf, size_t size) {
+    struct inode ip;
+    read_inode(ino, &ip);
+    
+    if (((ip.i_mode >> 12) & 0xF) != FT_SYMLINK) {
+        return -1;
+    }
+    
+    uint32_t blk = ip.i_block[0];
+    if (blk == 0) {
+        return -1;
+    }
+    
+    char block_buf[BLOCK_SIZE];
+    read_block(blk, block_buf);
+    
+    strncpy(buf, block_buf, size - 1);
+    buf[size - 1] = '\0';
+    
+    return (int)strlen(buf);
 }

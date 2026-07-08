@@ -339,3 +339,83 @@ time_t get_current_time(void)
 {
     return time(NULL);
 }
+
+block_cache_entry block_cache[BLOCK_CACHE_SIZE];
+int cache_hits = 0;
+int cache_misses = 0;
+
+static int cache_find(uint32_t block_no) {
+    int i;
+    for (i = 0; i < BLOCK_CACHE_SIZE; i++) {
+        if (block_cache[i].block_no == block_no) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static int cache_replace(void) {
+    static int next = 0;
+    int victim = next;
+    next = (next + 1) % BLOCK_CACHE_SIZE;
+    return victim;
+}
+
+void cache_read_block(uint32_t block_no, char *buf) {
+    int idx = cache_find(block_no);
+    if (idx >= 0) {
+        cache_hits++;
+        memcpy(buf, block_cache[idx].data, BLOCK_SIZE);
+        return;
+    }
+    cache_misses++;
+    read_block(block_no, buf);
+    idx = cache_replace();
+    if (block_cache[idx].dirty) {
+        write_block(block_cache[idx].block_no, block_cache[idx].data);
+    }
+    block_cache[idx].block_no = block_no;
+    memcpy(block_cache[idx].data, buf, BLOCK_SIZE);
+    block_cache[idx].dirty = 0;
+}
+
+void cache_write_block(uint32_t block_no, const char *buf) {
+    int idx = cache_find(block_no);
+    if (idx >= 0) {
+        cache_hits++;
+        memcpy(block_cache[idx].data, buf, BLOCK_SIZE);
+        block_cache[idx].dirty = 1;
+        return;
+    }
+    cache_misses++;
+    idx = cache_replace();
+    if (block_cache[idx].dirty) {
+        write_block(block_cache[idx].block_no, block_cache[idx].data);
+    }
+    block_cache[idx].block_no = block_no;
+    memcpy(block_cache[idx].data, buf, BLOCK_SIZE);
+    block_cache[idx].dirty = 1;
+}
+
+void cache_flush(void) {
+    int i;
+    for (i = 0; i < BLOCK_CACHE_SIZE; i++) {
+        if (block_cache[i].dirty && block_cache[i].block_no != 0) {
+            write_block(block_cache[i].block_no, block_cache[i].data);
+            block_cache[i].dirty = 0;
+        }
+    }
+}
+
+void cache_clear(void) {
+    int i;
+    for (i = 0; i < BLOCK_CACHE_SIZE; i++) {
+        if (block_cache[i].dirty && block_cache[i].block_no != 0) {
+            write_block(block_cache[i].block_no, block_cache[i].data);
+        }
+        block_cache[i].block_no = 0;
+        block_cache[i].dirty = 0;
+    }
+    cache_hits = 0;
+    cache_misses = 0;
+}

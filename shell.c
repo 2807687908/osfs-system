@@ -15,6 +15,8 @@ static void show_help(void)
     printf("  mkdir   <目录名>        - 创建目录\n");
     printf("  delete  <文件名>        - 删除文件\n");
     printf("  rmdir   <目录名>        - 删除空目录\n");
+    printf("  ln      <目标> <链接>   - 创建硬链接\n");
+    printf("  ln -s   <目标> <链接>   - 创建软链接\n");
     printf("  open    <文件名> <模式>  - 打开文件 (r/w/rw)\n");
     printf("  close   <fd>            - 关闭文件描述符\n");
     printf("  read    <fd> <字节数>   - 从文件读取\n");
@@ -112,14 +114,18 @@ static int execute_command(char *line)
     /* ===== login ===== */
     if (strcmp(args[0], "login") == 0) {
         if (argc < 2) {
-            printf("用法: login <用户名>\n");
+            printf("用法: login <用户名> [密码]\n");
             return 0;
         }
         if (current_uid >= 0) {
             printf("请先使用 logout 登出当前用户\n");
             return 0;
         }
-        user_login_full(args[1]);
+        if (argc >= 3) {
+            user_login(args[1], args[2]);
+        } else {
+            user_login_full(args[1]);
+        }
     }
     /* ===== logout ===== */
     else if (strcmp(args[0], "logout") == 0) {
@@ -217,6 +223,24 @@ static int execute_command(char *line)
             return 0;
         }
         dir_remove(args[1], current_dir);
+        dir_list(current_dir);
+    }
+    /* ===== ln ===== */
+    else if (strcmp(args[0], "ln") == 0) {
+        if (strcmp(args[1], "-s") == 0) {
+            if (argc < 4) {
+                printf("用法: ln -s <目标文件> <链接名>\n");
+                return 0;
+            }
+            dir_symlink(args[2], args[3]);
+        } else {
+            if (argc < 3) {
+                printf("用法: ln <目标文件> <链接名>\n");
+                printf("  ln -s <目标文件> <链接名>: 创建软链接\n");
+                return 0;
+            }
+            dir_link(args[1], args[2]);
+        }
         dir_list(current_dir);
     }
     /* ===== open ===== */

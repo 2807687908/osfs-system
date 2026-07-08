@@ -145,6 +145,37 @@ int file_open(const char *name, uint16_t mode)
 
     read_inode(ino, &ip);
 
+    /* 解析软链接 */
+    while (((ip.i_mode >> 12) & 0xF) == FT_SYMLINK) {
+        char target[MAX_PATH];
+        if (dir_readlink(ino, target, MAX_PATH) <= 0) {
+            printf("无法解析软链接\n");
+            return -1;
+        }
+        ino = dir_lookup(current_dir, target);
+        if (ino == 0) {
+            uint32_t parent;
+            const char *fname;
+            char path_copy[MAX_PATH];
+            char *slash;
+            strncpy(path_copy, target, MAX_PATH - 1);
+            path_copy[MAX_PATH - 1] = '\0';
+            slash = strrchr(path_copy, '/');
+            if (slash) {
+                *slash = '\0';
+                fname = slash + 1;
+                if (path_resolve(path_copy, &parent) == 0) {
+                    ino = dir_lookup(parent, fname);
+                }
+            }
+            if (ino == 0) {
+                printf("软链接目标 '%s' 不存在\n", target);
+                return -1;
+            }
+        }
+        read_inode(ino, &ip);
+    }
+
     /* 检查类型 */
     if (((ip.i_mode >> 12) & 0xF) == FT_DIRECTORY) {
         printf("'%s' 是目录，无法打开\n", name);

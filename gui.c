@@ -280,7 +280,7 @@ static void gui_update_file_list(void)
         file_list[file_count].size = entry_inode.i_size;
         perm_to_str(entry_inode.i_mode & 0x1FF, file_list[file_count].perm);
         strncpy(file_list[file_count].type, 
-               de_buf.file_type == FT_DIRECTORY ? "<DIR>" : "<FILE>", 
+               de_buf.file_type == FT_DIRECTORY ? "<DIR>" : (de_buf.file_type == FT_SYMLINK) ? "<LINK>" : "<FILE>", 
                sizeof(file_list[file_count].type) - 1);
         file_list[file_count].type[sizeof(file_list[file_count].type) - 1] = '\0';
         
@@ -405,6 +405,15 @@ static void gui_exec_command(const char *cmd)
             dir_remove(args[1], current_dir);
         }
         gui_update_file_list();
+    } else if (strcmp(args[0], "ln") == 0) {
+        if (argc >= 3) {
+            if (argc >= 4 && strcmp(args[3], "-s") == 0) {
+                dir_symlink(args[1], args[2]);
+            } else {
+                dir_link(args[1], args[2]);
+            }
+        }
+        gui_update_file_list();
     } else if (strcmp(args[0], "trash-move") == 0) {
         if (argc >= 2) {
             trash_move(args[1]);
@@ -524,6 +533,8 @@ static void gui_exec_command(const char *cmd)
         printf("  mkdir   <dir>           - Create directory\n");
         printf("  delete  <file>          - Delete file\n");
         printf("  rmdir   <dir>           - Remove empty directory\n");
+        printf("  ln      <target> <link> - Create hard link\n");
+        printf("  ln -s   <target> <link> - Create symbolic link\n");
         printf("  open    <file> <mode>   - Open file (r/w/rw)\n");
         printf("  close   <fd>            - Close file\n");
         printf("  read    <fd> <bytes>    - Read file\n");
