@@ -15,8 +15,6 @@ static uint32_t trash_dir_ino = 0;
 
 static uint32_t get_trash_dir(void)
 {
-    if (trash_dir_ino != 0) return trash_dir_ino;
-    
     trash_dir_ino = dir_lookup(1, TRASH_DIR_NAME);
     if (trash_dir_ino == 0) {
         int old_uid = current_uid;
@@ -51,7 +49,12 @@ static int read_trash_items(struct trash_item *items, int max_items)
         read_block(phys, buf);
         memcpy(&de_buf, buf + off, sizeof(struct dir_entry));
         
-        if (de_buf.inode == 0) {
+        if (de_buf.inode == 0 || de_buf.rec_len == 0) {
+            offset += de_buf.rec_len > 0 ? de_buf.rec_len : BLOCK_SIZE - off;
+            continue;
+        }
+        
+        if (de_buf.inode >= TOTAL_INODES) {
             offset += de_buf.rec_len;
             continue;
         }
@@ -59,6 +62,11 @@ static int read_trash_items(struct trash_item *items, int max_items)
         memset(name, 0, sizeof(name));
         memcpy(name, buf + off + sizeof(struct dir_entry),
                de_buf.name_len < MAX_FILENAME ? de_buf.name_len : MAX_FILENAME);
+        
+        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
+            offset += de_buf.rec_len;
+            continue;
+        }
         
         read_inode(de_buf.inode, &entry_inode);
         
@@ -69,7 +77,6 @@ static int read_trash_items(struct trash_item *items, int max_items)
         count++;
         
         offset += de_buf.rec_len;
-        if (de_buf.rec_len == 0) break;
     }
     
     return count;
@@ -112,7 +119,6 @@ int trash_move(const char *path)
     
     dir_add_entry(trash_dir, ino, new_name, 
                   ((ip.i_mode >> 12) & 0xF) == FT_DIRECTORY ? FT_DIRECTORY : FT_REG_FILE);
-    
     dir_remove_entry(parent_ino, name);
     
     printf("已将 '%s' 移入回收站 (inode=%u, 恢复命令: trash-restore %s)\n", name, ino, new_name);

@@ -118,13 +118,18 @@ int user_login_full(const char *name)
  */
 int user_login(const char *name, const char *passwd)
 {
-    (void)passwd;
     struct user_entry users[MAX_USERS];
     uint32_t i;
     user_read_table(users);
     for (i = 0; i < sb.s_user_count && i < MAX_USERS; i++) {
-        if (strcmp(users[i].name, name) == 0)
-            return (int)users[i].uid;
+        if (strcmp(users[i].name, name) == 0) {
+            if (strcmp(users[i].passwd, passwd) == 0) {
+                strcpy(current_user, name);
+                current_uid = (int)users[i].uid;
+                return 0;
+            }
+            return -1;
+        }
     }
     return -1;
 }

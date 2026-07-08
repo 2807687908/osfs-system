@@ -184,7 +184,23 @@ static int execute_command(char *line)
             printf("用法: mkdir <目录名>\n");
             return 0;
         }
-        dir_create(args[1], current_dir);
+        char *path = args[1];
+        char *sep = strrchr(path, '/');
+        if (sep != NULL) {
+            *sep = '\0';
+            char *parent_path = path;
+            char *child_name = sep + 1;
+            
+            uint32_t parent_ino = dir_lookup(current_dir, parent_path);
+            if (parent_ino != 0) {
+                dir_create(child_name, parent_ino);
+            } else {
+                printf("父目录 '%s' 不存在\n", parent_path);
+            }
+            *sep = '/';
+        } else {
+            dir_create(path, current_dir);
+        }
     }
     /* ===== delete ===== */
     else if (strcmp(args[0], "delete") == 0 || strcmp(args[0], "rm") == 0) {
@@ -201,6 +217,7 @@ static int execute_command(char *line)
             return 0;
         }
         dir_remove(args[1], current_dir);
+        dir_list(current_dir);
     }
     /* ===== open ===== */
     else if (strcmp(args[0], "open") == 0) {

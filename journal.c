@@ -1,7 +1,5 @@
 #include "fs.h"
 
-#define JOURNAL_BLOCK_START 138
-#define JOURNAL_BLOCKS 16
 #define JOURNAL_ENTRY_SIZE 64
 
 #define JOURNAL_MAGIC 0x4A4E5452
@@ -29,8 +27,11 @@ static int journal_enabled = 1;
 
 static void journal_save_state(void)
 {
-    char buf[JOURNAL_HEADER_SIZE];
+    char buf[BLOCK_SIZE];
     uint32_t *p = (uint32_t *)buf;
+    
+    read_block(JOURNAL_BLOCK_START, buf);
+    
     p[0] = JOURNAL_MAGIC;
     p[1] = journal_head;
     p[2] = journal_tail;
@@ -41,7 +42,7 @@ static void journal_save_state(void)
 
 static void journal_load_state(void)
 {
-    char buf[JOURNAL_HEADER_SIZE];
+    char buf[BLOCK_SIZE];
     uint32_t *p;
     
     read_block(JOURNAL_BLOCK_START, buf);
@@ -228,14 +229,29 @@ void journal_list(void)
     char buf[BLOCK_SIZE];
     struct journal_entry entry;
     uint32_t i, count = 0;
+    uint32_t max_entries = (JOURNAL_BLOCKS - 1) * (BLOCK_SIZE / JOURNAL_ENTRY_SIZE);
     
     printf("文件系统日志:\n");
     printf("%-16s %-12s %-8s %-10s %s\n", "时间", "类型", "Inode", "Block", "数据");
     printf("-------------------------------------------------------------------\n");
     
+    if (journal_head == journal_tail) {
+        printf("(空)\n");
+        printf("共 0 条记录\n");
+        return;
+    }
+    
     i = journal_tail;
-    while (i != journal_head) {
+    while (count < max_entries) {
+        if (i == journal_head) {
+            break;
+        }
+        
         uint32_t block_no = JOURNAL_BLOCK_START + 1 + (i / (BLOCK_SIZE / JOURNAL_ENTRY_SIZE));
+        if (block_no >= JOURNAL_BLOCK_START + JOURNAL_BLOCKS) {
+            break;
+        }
+        
         uint32_t offset = (i % (BLOCK_SIZE / JOURNAL_ENTRY_SIZE)) * JOURNAL_ENTRY_SIZE;
         
         read_block(block_no, buf);
@@ -270,14 +286,11 @@ void journal_list(void)
         
         count++;
         i++;
-        if (i >= (JOURNAL_BLOCKS - 1) * (BLOCK_SIZE / JOURNAL_ENTRY_SIZE)) {
+        if (i >= max_entries) {
             i = 0;
         }
     }
     
-    if (count == 0) {
-        printf("(空)\n");
-    }
     printf("共 %u 条记录\n", count);
 }
 

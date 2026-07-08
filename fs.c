@@ -175,10 +175,11 @@ void sb_read(void)
 
 void sb_write(void)
 {
-    rewind(disk);
-    fwrite(&sb, sizeof(sb), 1, disk);
-    fwrite(&gd, sizeof(gd), 1, disk);
-    fflush(disk);
+    char buf[BLOCK_SIZE];
+    memset(buf, 0, BLOCK_SIZE);
+    memcpy(buf, &sb, sizeof(sb));
+    memcpy(buf + sizeof(sb), &gd, sizeof(gd));
+    write_block(SUPERBLOCK_BLOCK, buf);
 }
 
 /* ========== 用户表读写 ========== */

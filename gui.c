@@ -12,6 +12,8 @@ typedef struct {
     uint32_t size;
     char perm[10];
     char type[10];
+    uint32_t phys_blk;
+    uint32_t log_blk;
 } FileInfo;
 
 static WINDOW *win_main, *win_status, *win_input, *win_info, *win_fd;
@@ -44,7 +46,7 @@ void gui_run(void)
         while (1) {
             gui_redraw();
             
-            ch = wgetch(win_main);
+            ch = wgetch(win_input);
             
             if (ch == KEY_F(10) || ch == '\n') {
                 if (cmd_pos > 0) {
@@ -68,7 +70,10 @@ void gui_run(void)
             } else if (ch == KEY_DOWN) {
                 if (selected < file_count - 1) selected++;
             } else if (ch == KEY_LEFT || ch == KEY_BACKSPACE || ch == 127) {
-                if (cmd_pos > 0) cmd_pos--;
+                if (cmd_pos > 0) {
+                    cmd_pos--;
+                    cmd_buffer[cmd_pos] = '\0';
+                }
             } else if (ch == KEY_RIGHT) {
                 /* ignore */
             } else if (ch == 27) {
@@ -84,62 +89,64 @@ void gui_run(void)
 
 static int gui_login(void)
 {
-    char username[MAX_USERNAME];
-    char password[MAX_USERNAME];
+    char username[MAX_USERNAME] = {0};
+    char password[MAX_USERNAME] = {0};
     int pos = 0;
     int ch;
-    
-    wclear(win_main);
-    box(win_main, 0, 0);
-    mvwprintw(win_main, 5, 10, "Login to File System");
-    mvwprintw(win_main, 7, 10, "Username: ");
-    mvwprintw(win_main, 9, 10, "Password: ");
-    wrefresh(win_main);
+    int state = 0;
     
     while (1) {
-        ch = wgetch(win_main);
-        
-        if (ch == '\n') {
-            if (pos > 0) {
-                username[pos] = '\0';
-                mvwprintw(win_main, 9, 20, "******");
-                wrefresh(win_main);
-                
-                pos = 0;
-                while (1) {
-                    ch = wgetch(win_main);
-                    if (ch == '\n') {
-                        password[pos] = '\0';
-                        if (user_login(username, password) == 0) {
-                            mvwprintw(win_main, 11, 10, "Login successful!");
-                            wrefresh(win_main);
-                            napms(500);
-                            return 1;
-                        } else {
-                            mvwprintw(win_main, 11, 10, "Login failed! Try again.");
-                            wrefresh(win_main);
-                            napms(500);
-                            return gui_login();
-                        }
-                    } else if (ch == KEY_BACKSPACE || ch == 127) {
-                        if (pos > 0) pos--;
-                    } else if (ch >= 32 && ch < 127 && pos < MAX_USERNAME - 1) {
-                        password[pos++] = ch;
-                    }
-                }
-            }
-        } else if (ch == KEY_BACKSPACE || ch == 127) {
-            if (pos > 0) pos--;
-        } else if (ch >= 32 && ch < 127 && pos < MAX_USERNAME - 1) {
-            username[pos++] = ch;
-        }
-        
         wclear(win_main);
         box(win_main, 0, 0);
         mvwprintw(win_main, 5, 10, "Login to File System");
-        mvwprintw(win_main, 7, 10, "Username: %s", username);
-        mvwprintw(win_main, 9, 10, "Password: ");
+        
+        if (state == 0) {
+            mvwprintw(win_main, 7, 10, "Username: %s", username);
+            mvwprintw(win_main, 9, 10, "Password: ");
+        } else if (state == 1) {
+            mvwprintw(win_main, 7, 10, "Username: %s", username);
+            mvwprintw(win_main, 9, 10, "Password: ******");
+        }
+        
         wrefresh(win_main);
+        
+        ch = wgetch(win_main);
+        
+        if (state == 0) {
+            if (ch == '\n') {
+                if (pos > 0) {
+                    username[pos] = '\0';
+                    state = 1;
+                    pos = 0;
+                }
+            } else if (ch == KEY_BACKSPACE || ch == 127) {
+                if (pos > 0) pos--;
+            } else if (ch >= 32 && ch < 127 && pos < MAX_USERNAME - 1) {
+                username[pos++] = ch;
+            }
+        } else {
+            if (ch == '\n') {
+                password[pos] = '\0';
+                if (user_login(username, password) == 0) {
+                    mvwprintw(win_main, 11, 10, "Login successful!");
+                    wrefresh(win_main);
+                    napms(500);
+                    return 1;
+                } else {
+                    mvwprintw(win_main, 11, 10, "Login failed! Try again.");
+                    wrefresh(win_main);
+                    napms(500);
+                    state = 0;
+                    pos = 0;
+                    memset(username, 0, sizeof(username));
+                    memset(password, 0, sizeof(password));
+                }
+            } else if (ch == KEY_BACKSPACE || ch == 127) {
+                if (pos > 0) pos--;
+            } else if (ch >= 32 && ch < 127 && pos < MAX_USERNAME - 1) {
+                password[pos++] = ch;
+            }
+        }
     }
     
     return 0;
@@ -163,6 +170,7 @@ static void gui_init(void)
     win_info = newwin(2, cols, rows - 5, 0);
     
     keypad(win_main, TRUE);
+    keypad(win_input, TRUE);
     scrollok(win_main, TRUE);
     
     box(win_main, 0, 0);
@@ -189,19 +197,21 @@ static void gui_redraw(void)
     
     mvwprintw(win_main, 0, 2, " %s ", current_dir_path);
     
-    mvwprintw(win_main, 2, 4, "%-24s %-8s %-8s %-10s %s", 
-              "Name", "Inode", "Size", "Perm", "Type");
-    mvwprintw(win_main, 3, 4, "%s", "---------------------------------------------------------------");
+    mvwprintw(win_main, 2, 4, "%-24s %-8s %-8s %-10s %-8s %-8s %s", 
+              "Name", "Inode", "Size", "Perm", "PhysBlk", "LogBlk", "Type");
+    mvwprintw(win_main, 3, 4, "%s", "-------------------------------------------------------------------------------");
     
     for (int i = 0; i < file_count; i++) {
         if (i == selected) {
             wattron(win_main, A_REVERSE);
         }
-        mvwprintw(win_main, i + 4, 4, "%-24s %-8u %-8u %-10s %s",
+        mvwprintw(win_main, i + 4, 4, "%-24s %-8u %-8u %-10s %-8u %-8u %s",
                    file_list[i].name,
                    file_list[i].inode,
                    file_list[i].size,
                    file_list[i].perm,
+                   file_list[i].phys_blk,
+                   file_list[i].log_blk,
                    file_list[i].type);
         if (i == selected) {
             wattroff(win_main, A_REVERSE);
@@ -248,7 +258,7 @@ static void gui_update_file_list(void)
         read_block(phys, buf);
         memcpy(&de_buf, buf + off, sizeof(struct dir_entry));
         
-        if (de_buf.inode == 0) {
+        if (de_buf.inode == 0 || de_buf.inode >= TOTAL_INODES) {
             offset += de_buf.rec_len;
             continue;
         }
@@ -257,14 +267,28 @@ static void gui_update_file_list(void)
         memcpy(name, buf + off + sizeof(struct dir_entry),
                de_buf.name_len < MAX_FILENAME ? de_buf.name_len : MAX_FILENAME);
         
+        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
+            offset += de_buf.rec_len;
+            continue;
+        }
+        
         read_inode(de_buf.inode, &entry_inode);
         
         strncpy(file_list[file_count].name, name, MAX_FILENAME - 1);
+        file_list[file_count].name[MAX_FILENAME - 1] = '\0';
         file_list[file_count].inode = de_buf.inode;
         file_list[file_count].size = entry_inode.i_size;
         perm_to_str(entry_inode.i_mode & 0x1FF, file_list[file_count].perm);
-        strcpy(file_list[file_count].type, 
-               de_buf.file_type == FT_DIRECTORY ? "<DIR>" : "<FILE>");
+        strncpy(file_list[file_count].type, 
+               de_buf.file_type == FT_DIRECTORY ? "<DIR>" : "<FILE>", 
+               sizeof(file_list[file_count].type) - 1);
+        file_list[file_count].type[sizeof(file_list[file_count].type) - 1] = '\0';
+        
+        file_list[file_count].log_blk = 0;
+        file_list[file_count].phys_blk = 0;
+        if (entry_inode.i_size > 0) {
+            file_list[file_count].phys_blk = get_block_by_offset(de_buf.inode, 0, 0);
+        }
         
         file_count++;
         offset += de_buf.rec_len;
@@ -352,7 +376,23 @@ static void gui_exec_command(const char *cmd)
         gui_update_file_list();
     } else if (strcmp(args[0], "mkdir") == 0) {
         if (argc >= 2) {
-            dir_create(args[1], current_dir);
+            char *path = args[1];
+            char *sep = strrchr(path, '/');
+            if (sep != NULL) {
+                *sep = '\0';
+                char *parent_path = path;
+                char *child_name = sep + 1;
+                
+                uint32_t parent_ino = dir_lookup(current_dir, parent_path);
+                if (parent_ino != 0) {
+                    dir_create(child_name, parent_ino);
+                } else {
+                    printf("父目录 '%s' 不存在\n", parent_path);
+                }
+                *sep = '/';
+            } else {
+                dir_create(path, current_dir);
+            }
         }
         gui_update_file_list();
     } else if (strcmp(args[0], "delete") == 0 || strcmp(args[0], "rm") == 0) {
@@ -390,10 +430,12 @@ static void gui_exec_command(const char *cmd)
             else mode = OPEN_READ;
             file_open(args[1], mode);
         }
+        gui_update_file_list();
     } else if (strcmp(args[0], "close") == 0) {
         if (argc >= 2) {
             file_close(atoi(args[1]));
         }
+        gui_update_file_list();
     } else if (strcmp(args[0], "read") == 0) {
         if (argc >= 3) {
             int fd = atoi(args[1]);
@@ -403,12 +445,23 @@ static void gui_exec_command(const char *cmd)
                 int n = file_read(fd, buf, size);
                 if (n > 0) {
                     buf[n] = '\0';
-                    gui_cleanup();
+                    def_prog_mode();
+                    endwin();
                     printf("\nFile content (%d bytes):\n", n);
                     printf("%s\n", buf);
                     printf("Press any key to continue...");
                     getchar();
-                    gui_init();
+                    reset_prog_mode();
+                    refresh();
+                    gui_update_file_list();
+                } else if (n == 0) {
+                    def_prog_mode();
+                    endwin();
+                    printf("\n(EOF - 文件末尾)\n");
+                    printf("Press any key to continue...");
+                    getchar();
+                    reset_prog_mode();
+                    refresh();
                     gui_update_file_list();
                 }
                 free(buf);
@@ -424,25 +477,31 @@ static void gui_exec_command(const char *cmd)
             }
             file_write(fd, content, (int)strlen(content));
         }
+        gui_update_file_list();
     } else if (strcmp(args[0], "trash") == 0) {
-        gui_cleanup();
+        def_prog_mode();
+        endwin();
         trash_list();
         printf("\nPress any key to continue...");
         getchar();
-        gui_init();
+        reset_prog_mode();
+        refresh();
         gui_update_file_list();
     } else if (strcmp(args[0], "trash-empty") == 0) {
         trash_empty();
         gui_update_file_list();
     } else if (strcmp(args[0], "journal") == 0) {
-        gui_cleanup();
+        def_prog_mode();
+        endwin();
         journal_list();
         printf("\nPress any key to continue...");
         getchar();
-        gui_init();
+        reset_prog_mode();
+        refresh();
         gui_update_file_list();
     } else if (strcmp(args[0], "df") == 0) {
-        gui_cleanup();
+        def_prog_mode();
+        endwin();
         sb_read();
         printf("Disk usage:\n");
         printf("  Total blocks:    %u\n", sb.s_blocks_count);
@@ -453,10 +512,12 @@ static void gui_exec_command(const char *cmd)
         printf("  Free inodes:     %u\n", sb.s_free_inodes_count);
         printf("\nPress any key to continue...");
         getchar();
-        gui_init();
+        reset_prog_mode();
+        refresh();
         gui_update_file_list();
     } else if (strcmp(args[0], "help") == 0) {
-        gui_cleanup();
+        def_prog_mode();
+        endwin();
         printf("======== Linux Secondary File System - Help ========\n");
         printf("  cd      <dir>           - Change directory\n");
         printf("  create  <file> [perm]   - Create file\n");
@@ -478,7 +539,8 @@ static void gui_exec_command(const char *cmd)
         printf("===================================================\n");
         printf("Press any key to continue...");
         getchar();
-        gui_init();
+        reset_prog_mode();
+        refresh();
         gui_update_file_list();
     }
 }

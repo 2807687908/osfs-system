@@ -26,7 +26,9 @@
 #define INODE_TABLE_BLOCKS  ((TOTAL_INODES * INODE_SIZE) / BLOCK_SIZE)  /* 128块 */
 #define USER_TABLE_START    134         /* 用户表: 块134-135 (2块) */
 #define USER_TABLE_BLOCKS   2
-#define DATA_START_BLOCK    136         /* 6+128+2=136 */
+#define JOURNAL_BLOCK_START 136         /* 日志区域起始块 */
+#define JOURNAL_BLOCKS      16          /* 日志区域块数 */
+#define DATA_START_BLOCK    152         /* 6+128+2+16=152 */
 
 /* 魔数 */
 #define EXT2_MAGIC          0xEF53

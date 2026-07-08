@@ -32,9 +32,9 @@ int dir_list(uint32_t dir_ino)
         return -1;
     }
 
-    printf("%-24s %-8s %-10s %-8s %s\n",
-           "文件名", "Inode", "保护码", "大小(字节)", "类型");
-    printf("-------------------------------------------------------------------\n");
+    printf("%-24s %-8s %-10s %-8s %-8s %-8s %s\n",
+           "文件名", "Inode", "保护码", "大小(字节)", "物理块号", "逻辑块号", "类型");
+    printf("-------------------------------------------------------------------------------\n");
 
     while (offset < dip.i_size) {
         struct dir_entry de_buf;
@@ -71,11 +71,20 @@ int dir_list(uint32_t dir_ino)
         {
             char perm_str[10];
             perm_to_str(entry_inode.i_mode & 0x1FF, perm_str);
-            printf("%-24s %-8u %-10s %-8u %s\n",
+            
+            uint32_t logical_blk = 0;
+            uint32_t phys_blk = 0;
+            if (entry_inode.i_size > 0) {
+                phys_blk = get_block_by_offset(de_buf.inode, 0, 0);
+            }
+            
+            printf("%-24s %-8u %-10s %-8u %-8u %-8u %s\n",
                    name,
                    de_buf.inode,
                    perm_str,
                    entry_inode.i_size,
+                   phys_blk,
+                   logical_blk,
                    (de_buf.file_type == FT_DIRECTORY) ? "<DIR>" : "<FILE>");
         }
 
@@ -160,6 +169,9 @@ void dir_add_entry(uint32_t dir_ino, uint32_t ino, const char *name, uint8_t fty
         /* 通过get_block_by_offset确保块已分配 */
         get_block_by_offset(dir_ino, needed, 1);
     }
+
+    /* 重新读取inode，因为get_block_by_offset可能已经修改了它 */
+    read_inode(dir_ino, &dip);
 
     /* 在目录末尾添加 */
     offset = dip.i_size;
@@ -385,7 +397,7 @@ int dir_create(const char *name, uint32_t parent_ino)
         dotdot_entry_size = (dotdot_entry_size + 3) & ~3;
         de = (struct dir_entry *)(buf + dot_entry_size);
         de->inode = parent_ino;
-        de->rec_len = (uint16_t)dotdot_entry_size;  /* 用实际大小 */
+        de->rec_len = (uint16_t)dotdot_entry_size;  /* 实际大小 */
         de->name_len = 2;
         de->file_type = FT_DIRECTORY;
         memcpy((char *)(de + 1), "..", 2);
@@ -441,12 +453,6 @@ int dir_remove(const char *name, uint32_t parent_ino)
         return -1;
     }
 
-    /* 检查目录是否为空(只有.和..) */
-    if (dip.i_size > 2 * (sizeof(struct dir_entry) + 2)) {
-        printf("目录 '%s' 不为空，无法删除\n", name);
-        return -1;
-    }
-
     /* 检查父目录写权限 */
     {
         struct inode pip;
@@ -455,6 +461,21 @@ int dir_remove(const char *name, uint32_t parent_ino)
             printf("权限不足: 无法从父目录删除\n");
             return -1;
         }
+    }
+
+    /* 检查目录是否为空(只有.和..) */
+    /* . 条目: sizeof(dir_entry) + 1 对齐后为16字节 */
+    /* .. 条目: sizeof(dir_entry) + 2 对齐后为16字节 */
+    /* 空目录总大小为 32 字节 */
+    if (dip.i_size > 32) {
+        printf("目录 '%s' 不为空，无法删除\n", name);
+        return -1;
+    }
+
+    /* 父目录链接数-1 */
+    {
+        struct inode pip;
+        read_inode(parent_ino, &pip);
         pip.i_links_count--;
         write_inode(parent_ino, &pip);
     }
@@ -482,6 +503,12 @@ int dir_change(const char *path)
     if (path_resolve(path, &target_ino) != 0) {
         printf("路径 '%s' 不存在\n", path);
         return -1;
+    }
+    
+    /* 根目录的父目录是自身，cd .. 应该保持在根目录 */
+    if (current_dir == 1 && strcmp(path, "..") == 0) {
+        printf("当前目录: %s\n", current_path);
+        return 0;
     }
 
     read_inode(target_ino, &tip);
