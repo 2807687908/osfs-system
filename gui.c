@@ -406,10 +406,12 @@ static void gui_exec_command(const char *cmd)
         }
         gui_update_file_list();
     } else if (strcmp(args[0], "ln") == 0) {
-        if (argc >= 3) {
-            if (argc >= 4 && strcmp(args[3], "-s") == 0) {
-                dir_symlink(args[1], args[2]);
-            } else {
+        if (strcmp(args[1], "-s") == 0) {
+            if (argc >= 4) {
+                dir_symlink(args[2], args[3]);
+            }
+        } else {
+            if (argc >= 3) {
                 dir_link(args[1], args[2]);
             }
         }
@@ -486,6 +488,44 @@ static void gui_exec_command(const char *cmd)
             }
             file_write(fd, content, (int)strlen(content));
         }
+        gui_update_file_list();
+    } else if (strcmp(args[0], "mmap") == 0) {
+        if (argc >= 3) {
+            int fd = atoi(args[1]);
+            size_t length = (size_t)strtol(args[2], NULL, 10);
+            void *addr = fs_mmap(fd, length);
+            if (addr != (void*)-1) {
+                def_prog_mode();
+                endwin();
+                printf("\nmmap成功: 地址=%p, 长度=%zu\n", addr, length);
+                printf("Press any key to continue...");
+                getchar();
+                reset_prog_mode();
+                refresh();
+            }
+        }
+        gui_update_file_list();
+    } else if (strcmp(args[0], "munmap") == 0) {
+        if (argc >= 3) {
+            void *addr = (void *)strtoul(args[1], NULL, 16);
+            size_t length = (size_t)strtol(args[2], NULL, 10);
+            fs_munmap(addr, length);
+            gui_update_file_list();
+        }
+    } else if (strcmp(args[0], "msync") == 0) {
+        if (argc >= 2) {
+            void *addr = (void *)strtoul(args[1], NULL, 16);
+            fs_msync(addr);
+            gui_update_file_list();
+        }
+    } else if (strcmp(args[0], "mlist") == 0) {
+        def_prog_mode();
+        endwin();
+        mmap_list();
+        printf("\nPress any key to continue...");
+        getchar();
+        reset_prog_mode();
+        refresh();
         gui_update_file_list();
     } else if (strcmp(args[0], "trash") == 0) {
         def_prog_mode();
