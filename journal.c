@@ -262,8 +262,13 @@ void journal_list(void)
         }
         
         char time_str[20];
-        struct tm *t = localtime((time_t *)&entry.timestamp);
-        strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", t);
+        time_t ts = (time_t)entry.timestamp;
+        struct tm *t = localtime(&ts);
+        if (t != NULL) {
+            strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", t);
+        } else {
+            snprintf(time_str, sizeof(time_str), "%u", entry.timestamp);
+        }
         
         const char *type_str;
         switch (entry.type) {

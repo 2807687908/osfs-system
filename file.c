@@ -371,6 +371,8 @@ int file_write(int fd, const char *buf, int size)
     ip.i_atime = (uint32_t)time(NULL);
     write_inode(ino, &ip);
 
+    journal_log_write(ino, 0, buf, (size_t)total);
+
     return total;
 }
 

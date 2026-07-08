@@ -494,7 +494,7 @@ static void gui_exec_command(const char *cmd)
             int fd = atoi(args[1]);
             size_t length = (size_t)strtol(args[2], NULL, 10);
             void *addr = fs_mmap(fd, length);
-            if (addr != (void*)-1) {
+            if (addr != NULL) {
                 def_prog_mode();
                 endwin();
                 printf("\nmmap成功: 地址=%p, 长度=%zu\n", addr, length);
