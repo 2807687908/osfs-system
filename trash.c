@@ -44,6 +44,7 @@ static int read_trash_items(struct trash_item *items, int max_items)
         uint32_t off = offset % BLOCK_SIZE;
         uint32_t phys;
         char buf[BLOCK_SIZE];
+        struct inode entry_inode;
         
         phys = get_block_by_offset(dir_ino, blk * BLOCK_SIZE, 0);
         if (phys == 0) break;
@@ -59,10 +60,12 @@ static int read_trash_items(struct trash_item *items, int max_items)
         memcpy(name, buf + off + sizeof(struct dir_entry),
                de_buf.name_len < MAX_FILENAME ? de_buf.name_len : MAX_FILENAME);
         
+        read_inode(de_buf.inode, &entry_inode);
+        
         items[count].file_type = de_buf.file_type;
         items[count].original_inode = de_buf.inode;
         strncpy(items[count].name, name, MAX_FILENAME - 1);
-        items[count].timestamp = (uint32_t)time(NULL);
+        items[count].timestamp = entry_inode.i_ctime;
         count++;
         
         offset += de_buf.rec_len;
@@ -80,7 +83,6 @@ int trash_move(const char *path)
     char new_name[MAX_FILENAME];
     char *slash;
     uint32_t trash_dir = get_trash_dir();
-    struct inode trash_ip;
     
     if (path_resolve(path, &ino) != 0) {
         printf("文件/目录 '%s' 不存在\n", path);
@@ -92,34 +94,28 @@ int trash_move(const char *path)
     slash = strrchr(path, '/');
     if (slash) {
         strncpy(name, slash + 1, MAX_FILENAME - 1);
+        char parent_path[MAX_PATH];
+        strncpy(parent_path, path, slash - path);
+        parent_path[slash - path] = '\0';
+        if (path_resolve(parent_path, &parent_ino) != 0) {
+            parent_ino = current_dir;
+        }
     } else {
         strncpy(name, path, MAX_FILENAME - 1);
+        parent_ino = current_dir;
     }
     
-    snprintf(new_name, MAX_FILENAME, "%s_%010u", name, (unsigned int)time(NULL));
+    int max_name_len = MAX_FILENAME - 12;
+    if (max_name_len < 1) max_name_len = 1;
+    snprintf(new_name, MAX_FILENAME, "%.*s_%u", max_name_len, name, ino);
     new_name[MAX_FILENAME - 1] = '\0';
     
     dir_add_entry(trash_dir, ino, new_name, 
                   ((ip.i_mode >> 12) & 0xF) == FT_DIRECTORY ? FT_DIRECTORY : FT_REG_FILE);
     
-    read_inode(trash_dir, &trash_ip);
-    trash_ip.i_links_count++;
-    write_inode(trash_dir, &trash_ip);
-    
-    path_resolve(path, &ino);
-    slash = strrchr(path, '/');
-    char parent_path[MAX_PATH];
-    if (slash) {
-        strncpy(parent_path, path, slash - path);
-        parent_path[slash - path] = '\0';
-        path_resolve(parent_path, &parent_ino);
-    } else {
-        parent_ino = current_dir;
-    }
-    
     dir_remove_entry(parent_ino, name);
     
-    printf("已将 '%s' 移入回收站\n", name);
+    printf("已将 '%s' 移入回收站 (inode=%u, 恢复命令: trash-restore %s)\n", name, ino, new_name);
     return 0;
 }
 

@@ -49,6 +49,8 @@ int file_create(const char *name, uint32_t parent_ino, uint16_t perm)
     /* 在父目录添加条目 */
     dir_add_entry(parent_ino, new_ino, name, FT_REG_FILE);
 
+    journal_log_create(new_ino);
+
     printf("文件 '%s' 创建成功 (inode=%u, 权限=%o)\n", name, new_ino, perm & 0x1FF);
     return 0;
 }
@@ -93,6 +95,8 @@ int file_delete(const char *name, uint32_t parent_ino)
 
     /* 从目录中移除 */
     dir_remove_entry(parent_ino, name);
+
+    journal_log_delete(ino);
 
     /* 释放inode(内部会截断并释放数据块) */
     inode_free(ino);
@@ -364,6 +368,8 @@ int file_chmod(const char *name, uint32_t parent_ino, uint16_t new_perm)
     ip.i_mode = (ip.i_mode & 0xF000) | (new_perm & 0x1FF);
     ip.i_mtime = (uint32_t)time(NULL);
     write_inode(ino, &ip);
+
+    journal_log_chmod(ino, new_perm);
 
     printf("文件 '%s' 权限已修改为 %o\n", name, new_perm & 0x1FF);
     return 0;

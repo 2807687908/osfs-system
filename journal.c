@@ -5,6 +5,7 @@
 #define JOURNAL_ENTRY_SIZE 64
 
 #define JOURNAL_MAGIC 0x4A4E5452
+#define JOURNAL_HEADER_SIZE 16
 
 struct journal_entry {
     uint32_t magic;
@@ -26,10 +27,41 @@ static uint32_t journal_head = 0;
 static uint32_t journal_tail = 0;
 static int journal_enabled = 1;
 
+static void journal_save_state(void)
+{
+    char buf[JOURNAL_HEADER_SIZE];
+    uint32_t *p = (uint32_t *)buf;
+    p[0] = JOURNAL_MAGIC;
+    p[1] = journal_head;
+    p[2] = journal_tail;
+    p[3] = journal_enabled;
+    
+    write_block(JOURNAL_BLOCK_START, buf);
+}
+
+static void journal_load_state(void)
+{
+    char buf[JOURNAL_HEADER_SIZE];
+    uint32_t *p;
+    
+    read_block(JOURNAL_BLOCK_START, buf);
+    p = (uint32_t *)buf;
+    
+    if (p[0] == JOURNAL_MAGIC) {
+        journal_head = p[1];
+        journal_tail = p[2];
+        journal_enabled = p[3];
+    } else {
+        journal_head = 0;
+        journal_tail = 0;
+        journal_enabled = 1;
+    }
+}
+
 static void journal_write_entry(struct journal_entry *entry)
 {
     char buf[BLOCK_SIZE];
-    uint32_t block_no = JOURNAL_BLOCK_START + (journal_head / (BLOCK_SIZE / JOURNAL_ENTRY_SIZE));
+    uint32_t block_no = JOURNAL_BLOCK_START + 1 + (journal_head / (BLOCK_SIZE / JOURNAL_ENTRY_SIZE));
     uint32_t offset = (journal_head % (BLOCK_SIZE / JOURNAL_ENTRY_SIZE)) * JOURNAL_ENTRY_SIZE;
     
     entry->magic = JOURNAL_MAGIC;
@@ -40,16 +72,18 @@ static void journal_write_entry(struct journal_entry *entry)
     write_block(block_no, buf);
     
     journal_head++;
-    if (journal_head >= JOURNAL_BLOCKS * (BLOCK_SIZE / JOURNAL_ENTRY_SIZE)) {
+    if (journal_head >= (JOURNAL_BLOCKS - 1) * (BLOCK_SIZE / JOURNAL_ENTRY_SIZE)) {
         journal_head = 0;
     }
     
     if (journal_head == journal_tail) {
         journal_tail++;
-        if (journal_tail >= JOURNAL_BLOCKS * (BLOCK_SIZE / JOURNAL_ENTRY_SIZE)) {
+        if (journal_tail >= (JOURNAL_BLOCKS - 1) * (BLOCK_SIZE / JOURNAL_ENTRY_SIZE)) {
             journal_tail = 0;
         }
     }
+    
+    journal_save_state();
 }
 
 void journal_log_create(uint32_t inode_no)
@@ -123,23 +157,21 @@ void journal_init(void)
     char buf[BLOCK_SIZE];
     uint32_t i;
     
-    for (i = JOURNAL_BLOCK_START; i < JOURNAL_BLOCK_START + JOURNAL_BLOCKS; i++) {
-        read_block(i, buf);
-        if (buf[0] != 0) {
-            break;
-        }
-    }
+    read_block(JOURNAL_BLOCK_START, buf);
     
-    if (i == JOURNAL_BLOCK_START + JOURNAL_BLOCKS) {
+    if (((uint32_t *)buf)[0] == JOURNAL_MAGIC) {
+        journal_load_state();
+        printf("[INFO] 日志系统已加载，head=%u, tail=%u\n", journal_head, journal_tail);
+    } else {
         for (i = JOURNAL_BLOCK_START; i < JOURNAL_BLOCK_START + JOURNAL_BLOCKS; i++) {
             memset(buf, 0, BLOCK_SIZE);
             write_block(i, buf);
         }
         journal_head = 0;
         journal_tail = 0;
+        journal_enabled = 1;
+        journal_save_state();
         printf("[INFO] 日志系统初始化完成\n");
-    } else {
-        journal_recover();
     }
 }
 
@@ -153,7 +185,7 @@ void journal_recover(void)
     
     i = journal_tail;
     while (i != journal_head) {
-        uint32_t block_no = JOURNAL_BLOCK_START + (i / (BLOCK_SIZE / JOURNAL_ENTRY_SIZE));
+        uint32_t block_no = JOURNAL_BLOCK_START + 1 + (i / (BLOCK_SIZE / JOURNAL_ENTRY_SIZE));
         uint32_t offset = (i % (BLOCK_SIZE / JOURNAL_ENTRY_SIZE)) * JOURNAL_ENTRY_SIZE;
         
         read_block(block_no, buf);
@@ -183,7 +215,7 @@ void journal_recover(void)
         
         count++;
         i++;
-        if (i >= JOURNAL_BLOCKS * (BLOCK_SIZE / JOURNAL_ENTRY_SIZE)) {
+        if (i >= (JOURNAL_BLOCKS - 1) * (BLOCK_SIZE / JOURNAL_ENTRY_SIZE)) {
             i = 0;
         }
     }
@@ -203,7 +235,7 @@ void journal_list(void)
     
     i = journal_tail;
     while (i != journal_head) {
-        uint32_t block_no = JOURNAL_BLOCK_START + (i / (BLOCK_SIZE / JOURNAL_ENTRY_SIZE));
+        uint32_t block_no = JOURNAL_BLOCK_START + 1 + (i / (BLOCK_SIZE / JOURNAL_ENTRY_SIZE));
         uint32_t offset = (i % (BLOCK_SIZE / JOURNAL_ENTRY_SIZE)) * JOURNAL_ENTRY_SIZE;
         
         read_block(block_no, buf);
@@ -238,7 +270,7 @@ void journal_list(void)
         
         count++;
         i++;
-        if (i >= JOURNAL_BLOCKS * (BLOCK_SIZE / JOURNAL_ENTRY_SIZE)) {
+        if (i >= (JOURNAL_BLOCKS - 1) * (BLOCK_SIZE / JOURNAL_ENTRY_SIZE)) {
             i = 0;
         }
     }
@@ -261,11 +293,13 @@ void journal_clear(void)
     
     journal_head = 0;
     journal_tail = 0;
+    journal_save_state();
     printf("日志已清空\n");
 }
 
 void journal_toggle(int enable)
 {
     journal_enabled = enable;
+    journal_save_state();
     printf("日志功能已%s\n", enable ? "启用" : "禁用");
 }

@@ -407,6 +407,8 @@ int dir_create(const char *name, uint32_t parent_ino)
         write_inode(parent_ino, &tmp_pip);
     }
 
+    journal_log_create(new_ino);
+
     printf("目录 '%s' 创建成功 (inode=%u)\n", name, new_ino);
     return 0;
 }
@@ -459,6 +461,8 @@ int dir_remove(const char *name, uint32_t parent_ino)
 
     /* 从父目录移除条目 */
     dir_remove_entry(parent_ino, name);
+
+    journal_log_delete(ino);
 
     /* 释放inode(内部会截断并释放数据块) */
     inode_free(ino);

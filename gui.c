@@ -14,68 +14,135 @@ typedef struct {
     char type[10];
 } FileInfo;
 
-static WINDOW *win_main, *win_status, *win_input, *win_info;
+static WINDOW *win_main, *win_status, *win_input, *win_info, *win_fd;
 static FileInfo file_list[MAX_FILES];
 static int file_count = 0;
 static int selected = 0;
 static char current_dir_path[MAX_PATH];
 static char cmd_buffer[MAX_CMD_LEN];
 static int cmd_pos = 0;
+static int show_login = 1;
 
 static void gui_init(void);
 static void gui_cleanup(void);
 static void gui_redraw(void);
 static void gui_update_file_list(void);
 static void gui_show_info(void);
+static void gui_show_fd(void);
 static void gui_exec_command(const char *cmd);
+static int gui_login(void);
 
 void gui_run(void)
 {
     int ch;
     
     gui_init();
-    gui_update_file_list();
     
-    while (1) {
-        gui_redraw();
+    if (gui_login()) {
+        gui_update_file_list();
         
-        ch = wgetch(win_main);
-        
-        if (ch == KEY_F(10) || ch == '\n') {
-            if (cmd_pos > 0) {
-                cmd_buffer[cmd_pos] = '\0';
-                gui_exec_command(cmd_buffer);
-                cmd_pos = 0;
-                memset(cmd_buffer, 0, sizeof(cmd_buffer));
-            } else if (file_count > 0) {
-                if (strcmp(file_list[selected].type, "<DIR>") == 0) {
-                    char cd_cmd[MAX_PATH];
-                    snprintf(cd_cmd, sizeof(cd_cmd), "cd %s", file_list[selected].name);
-                    gui_exec_command(cd_cmd);
-                } else {
-                    char open_cmd[MAX_PATH];
-                    snprintf(open_cmd, sizeof(open_cmd), "open %s r", file_list[selected].name);
-                    gui_exec_command(open_cmd);
-                    gui_exec_command("read 0 1000");
-                    gui_exec_command("close 0");
+        while (1) {
+            gui_redraw();
+            
+            ch = wgetch(win_main);
+            
+            if (ch == KEY_F(10) || ch == '\n') {
+                if (cmd_pos > 0) {
+                    cmd_buffer[cmd_pos] = '\0';
+                    gui_exec_command(cmd_buffer);
+                    cmd_pos = 0;
+                    memset(cmd_buffer, 0, sizeof(cmd_buffer));
+                } else if (file_count > 0) {
+                    if (strcmp(file_list[selected].type, "<DIR>") == 0) {
+                        char cd_cmd[MAX_PATH];
+                        snprintf(cd_cmd, sizeof(cd_cmd), "cd %s", file_list[selected].name);
+                        gui_exec_command(cd_cmd);
+                    } else {
+                        char open_cmd[MAX_PATH];
+                        snprintf(open_cmd, sizeof(open_cmd), "open %s r", file_list[selected].name);
+                        gui_exec_command(open_cmd);
+                    }
                 }
+            } else if (ch == KEY_UP) {
+                if (selected > 0) selected--;
+            } else if (ch == KEY_DOWN) {
+                if (selected < file_count - 1) selected++;
+            } else if (ch == KEY_LEFT || ch == KEY_BACKSPACE || ch == 127) {
+                if (cmd_pos > 0) cmd_pos--;
+            } else if (ch == KEY_RIGHT) {
+                /* ignore */
+            } else if (ch == 27) {
+                break;
+            } else if (ch >= 32 && ch <= 126 && cmd_pos < MAX_CMD_LEN - 1) {
+                cmd_buffer[cmd_pos++] = (char)ch;
             }
-        } else if (ch == KEY_UP) {
-            if (selected > 0) selected--;
-        } else if (ch == KEY_DOWN) {
-            if (selected < file_count - 1) selected++;
-        } else if (ch == KEY_LEFT || ch == KEY_BACKSPACE || ch == 127) {
-            if (cmd_pos > 0) cmd_pos--;
-        } else if (ch == KEY_RIGHT) {
-            /* ignore */
-        } else if (ch == 27) {
-            break;
-        } else if (ch >= 32 && ch <= 126 && cmd_pos < MAX_CMD_LEN - 1) {
-            cmd_buffer[cmd_pos++] = (char)ch;
         }
     }
     
     gui_cleanup();
+}
+
+static int gui_login(void)
+{
+    char username[MAX_USERNAME];
+    char password[MAX_USERNAME];
+    int pos = 0;
+    int ch;
+    
+    wclear(win_main);
+    box(win_main, 0, 0);
+    mvwprintw(win_main, 5, 10, "Login to File System");
+    mvwprintw(win_main, 7, 10, "Username: ");
+    mvwprintw(win_main, 9, 10, "Password: ");
+    wrefresh(win_main);
+    
+    while (1) {
+        ch = wgetch(win_main);
+        
+        if (ch == '\n') {
+            if (pos > 0) {
+                username[pos] = '\0';
+                mvwprintw(win_main, 9, 20, "******");
+                wrefresh(win_main);
+                
+                pos = 0;
+                while (1) {
+                    ch = wgetch(win_main);
+                    if (ch == '\n') {
+                        password[pos] = '\0';
+                        if (user_login(username, password) == 0) {
+                            mvwprintw(win_main, 11, 10, "Login successful!");
+                            wrefresh(win_main);
+                            napms(500);
+                            return 1;
+                        } else {
+                            mvwprintw(win_main, 11, 10, "Login failed! Try again.");
+                            wrefresh(win_main);
+                            napms(500);
+                            return gui_login();
+                        }
+                    } else if (ch == KEY_BACKSPACE || ch == 127) {
+                        if (pos > 0) pos--;
+                    } else if (ch >= 32 && ch < 127 && pos < MAX_USERNAME - 1) {
+                        password[pos++] = ch;
+                    }
+                }
+            }
+        } else if (ch == KEY_BACKSPACE || ch == 127) {
+            if (pos > 0) pos--;
+        } else if (ch >= 32 && ch < 127 && pos < MAX_USERNAME - 1) {
+            username[pos++] = ch;
+        }
+        
+        wclear(win_main);
+        box(win_main, 0, 0);
+        mvwprintw(win_main, 5, 10, "Login to File System");
+        mvwprintw(win_main, 7, 10, "Username: %s", username);
+        mvwprintw(win_main, 9, 10, "Password: ");
+        wrefresh(win_main);
+    }
+    
+    return 0;
 }
 
 static void gui_init(void)
@@ -89,7 +156,8 @@ static void gui_init(void)
     int rows, cols;
     getmaxyx(stdscr, rows, cols);
     
-    win_main = newwin(rows - 4, cols, 0, 0);
+    win_main = newwin(rows - 6, cols, 0, 0);
+    win_fd = newwin(3, cols, rows - 6, 0);
     win_status = newwin(1, cols, rows - 3, 0);
     win_input = newwin(1, cols, rows - 1, 0);
     win_info = newwin(2, cols, rows - 5, 0);
@@ -99,6 +167,7 @@ static void gui_init(void)
     
     box(win_main, 0, 0);
     box(win_info, 0, 0);
+    box(win_fd, 0, 0);
     
     mvwprintw(win_status, 0, 0, "Linux FS - Arrow keys to select | Enter to confirm | ESC to exit");
 }
@@ -106,6 +175,7 @@ static void gui_init(void)
 static void gui_cleanup(void)
 {
     delwin(win_main);
+    delwin(win_fd);
     delwin(win_status);
     delwin(win_input);
     delwin(win_info);
@@ -142,10 +212,15 @@ static void gui_redraw(void)
     box(win_info, 0, 0);
     gui_show_info();
     
+    wclear(win_fd);
+    box(win_fd, 0, 0);
+    gui_show_fd();
+    
     wclear(win_input);
     mvwprintw(win_input, 0, 0, "> %s", cmd_buffer);
     
     wrefresh(win_main);
+    wrefresh(win_fd);
     wrefresh(win_info);
     wrefresh(win_input);
     wrefresh(win_status);
@@ -218,6 +293,31 @@ static void gui_show_info(void)
                   file_list[selected].inode,
                   file_list[selected].size);
     }
+}
+
+static void gui_show_fd(void)
+{
+    int i, count = 0;
+    mvwprintw(win_fd, 0, 2, "Open FDs: ");
+    
+    for (i = 0; i < MAX_OPEN_FILES; i++) {
+        if (fd_table[i].used) {
+            const char *mode = fd_table[i].mode == OPEN_READ ? "r" :
+                              (fd_table[i].mode == OPEN_WRITE ? "w" : "rw");
+            if (count == 0) {
+                mvwprintw(win_fd, 0, 10, "fd=%d(inode=%u,mode=%s)", i, fd_table[i].inode_no, mode);
+            } else {
+                wprintw(win_fd, " fd=%d(inode=%u,mode=%s)", i, fd_table[i].inode_no, mode);
+            }
+            count++;
+        }
+    }
+    
+    if (count == 0) {
+        mvwprintw(win_fd, 0, 10, "(none)");
+    }
+    
+    mvwprintw(win_fd, 1, 2, "Use: open <file> r/w/rw | read/write <fd> <data> | close <fd>");
 }
 
 static void gui_exec_command(const char *cmd)
@@ -309,6 +409,7 @@ static void gui_exec_command(const char *cmd)
                     printf("Press any key to continue...");
                     getchar();
                     gui_init();
+                    gui_update_file_list();
                 }
                 free(buf);
             }
@@ -329,6 +430,7 @@ static void gui_exec_command(const char *cmd)
         printf("\nPress any key to continue...");
         getchar();
         gui_init();
+        gui_update_file_list();
     } else if (strcmp(args[0], "trash-empty") == 0) {
         trash_empty();
         gui_update_file_list();
@@ -338,6 +440,7 @@ static void gui_exec_command(const char *cmd)
         printf("\nPress any key to continue...");
         getchar();
         gui_init();
+        gui_update_file_list();
     } else if (strcmp(args[0], "df") == 0) {
         gui_cleanup();
         sb_read();
@@ -351,6 +454,7 @@ static void gui_exec_command(const char *cmd)
         printf("\nPress any key to continue...");
         getchar();
         gui_init();
+        gui_update_file_list();
     } else if (strcmp(args[0], "help") == 0) {
         gui_cleanup();
         printf("======== Linux Secondary File System - Help ========\n");
@@ -359,7 +463,7 @@ static void gui_exec_command(const char *cmd)
         printf("  mkdir   <dir>           - Create directory\n");
         printf("  delete  <file>          - Delete file\n");
         printf("  rmdir   <dir>           - Remove empty directory\n");
-        printf("  open    <file> <mode>   - Open file\n");
+        printf("  open    <file> <mode>   - Open file (r/w/rw)\n");
         printf("  close   <fd>            - Close file\n");
         printf("  read    <fd> <bytes>    - Read file\n");
         printf("  write   <fd> <content>  - Write file\n");
@@ -375,5 +479,6 @@ static void gui_exec_command(const char *cmd)
         printf("Press any key to continue...");
         getchar();
         gui_init();
+        gui_update_file_list();
     }
 }

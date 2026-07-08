@@ -10,7 +10,7 @@
 #include <windows.h>
 #endif
 
-int main(void)
+int main(int argc, char *argv[])
 {
 #ifdef _WIN32
     /* 设置控制台编码为UTF-8，解决中文乱码 */
@@ -37,15 +37,22 @@ int main(void)
         }
     }
 
-    /* 选择界面模式 */
-    printf("\n请选择运行模式:\n");
-    printf("  1. 命令行模式 (shell)\n");
-    printf("  2. 图形界面模式 (GUI - 需要ncurses)\n");
-    printf("请输入选择 [1/2]: ");
+    /* 初始化日志系统 */
+    journal_init();
+
+    int choice = 1;
     
-    int choice = 0;
-    scanf("%d", &choice);
-    getchar();
+    if (argc > 1) {
+        choice = atoi(argv[1]);
+    } else {
+        printf("\n请选择运行模式:\n");
+        printf("  1. 命令行模式 (shell)\n");
+        printf("  2. 图形界面模式 (GUI - 需要ncurses)\n");
+        printf("请输入选择 [1/2]: ");
+        
+        scanf("%d", &choice);
+        getchar();
+    }
     
     if (choice == 2) {
         gui_run();
