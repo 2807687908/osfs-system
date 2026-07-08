@@ -111,6 +111,19 @@ static int execute_command(char *line)
 
     if (argc == 0) return 0;
 
+    /* 处理引号并检测空参数 */
+    for (int i = 0; i < argc; i++) {
+        size_t len = strlen(args[i]);
+        if (len >= 2 && args[i][0] == '"' && args[i][len-1] == '"') {
+            args[i][len-1] = '\0';
+            args[i]++;
+        }
+        if (strlen(args[i]) == 0) {
+            printf("错误: 参数不能为空\n");
+            return 0;
+        }
+    }
+
     /* ===== login ===== */
     if (strcmp(args[0], "login") == 0) {
         if (argc < 2) {
